@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Padlock Puzzle - Host Page</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            color: #fff;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            color: #e94560;
+        }
+
+        .config-panel {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        .config-panel h2 {
+            margin-bottom: 15px;
+            font-size: 18px;
+            color: #e94560;
+        }
+
+        .config-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            gap: 10px;
+        }
+
+        .config-row label {
+            flex: 0 0 150px;
+            font-size: 14px;
+        }
+
+        .config-row input {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            font-size: 14px;
+        }
+
+        .config-row input:focus {
+            outline: 2px solid #e94560;
+        }
+
+        button {
+            background: #e94560;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #ff6b6b;
+        }
+
+        .iframe-container {
+            width: 100%;
+            max-width: 600px;
+            height: 500px;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .info {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            max-width: 600px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .info code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+
+        .info pre {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Padlock Puzzle</h1>
+
+    <div class="config-panel">
+        <h2>Configuration</h2>
+        <div class="config-row">
+            <label>Escapp Endpoint:</label>
+            <input type="text" id="endpoint" value="https://escapp.es/api/escapeRooms/320">
+        </div>
+        <div class="config-row">
+            <label>Puzzle ID:</label>
+            <input type="number" id="puzzleId" value="2" min="1">
+        </div>
+        <div class="config-row">
+            <label>Solution Length:</label>
+            <input type="number" id="solutionLength" value="1" min="1" max="10">
+        </div>
+        <div class="config-row">
+            <label>User Email:</label>
+            <input type="text" id="userEmail" value="" placeholder="user@example.com">
+        </div>
+        <div class="config-row">
+            <label>User Token:</label>
+            <input type="text" id="userToken" value="" placeholder="token">
+        </div>
+        <div class="config-row">
+            <label>Background Image:</label>
+            <input type="text" id="backgroundImage" value="" placeholder="https://example.com/image.jpg">
+        </div>
+        <div class="config-row">
+            <label>Background Color:</label>
+            <input type="text" id="backgroundColor" value="#1a1a2e" placeholder="#1a1a2e">
+        </div>
+        <div class="config-row">
+            <label>Unlocked Text:</label>
+            <input type="text" id="unlockedText" value="UNLOCKED!" placeholder="UNLOCKED!">
+        </div>
+        <div class="config-row">
+            <label></label>
+            <button onclick="loadPuzzle()">Load Puzzle</button>
+        </div>
+    </div>
+
+    <div class="iframe-container">
+        <iframe id="puzzleFrame" src="about:blank"></iframe>
+    </div>
+
+    <div class="info">
+        <strong>How it works:</strong>
+        <p>This page sets <code>window.ESCAPP_APP_SETTINGS</code> matching the Escapp server structure:</p>
+
+        <pre>{
+  solutionLength: 1,
+  escappClientSettings: {
+    endpoint: "https://escapp.es/api/escapeRooms/320",
+    linkedPuzzleIds: [2],
+    silent: true,
+    user: { email: "...", token: "..." }
+  }
+}</pre>
+
+        <p><strong>To test with Escapp:</strong> Enter your endpoint, puzzle ID, and user credentials (email + token from Escapp).</p>
+
+        <p><strong>Note:</strong> Without valid credentials, the ESCAPP client will show an authentication dialog.</p>
+    </div>
+
+    <script>
+        // This is the configuration object that the iframe will read
+        // Matches the structure from Escapp server
+        window.ESCAPP_APP_SETTINGS = null;
+
+        function loadPuzzle() {
+            var endpoint = document.getElementById('endpoint').value.trim();
+            var puzzleId = parseInt(document.getElementById('puzzleId').value) || 2;
+            var solutionLength = parseInt(document.getElementById('solutionLength').value) || 1;
+            var userEmail = document.getElementById('userEmail').value.trim();
+            var userToken = document.getElementById('userToken').value.trim();
+            var backgroundImage = document.getElementById('backgroundImage').value.trim();
+            var backgroundColor = document.getElementById('backgroundColor').value.trim();
+            var unlockedText = document.getElementById('unlockedText').value.trim();
+
+            // Build settings matching server structure
+            window.ESCAPP_APP_SETTINGS = {
+                puzzle: puzzleId.toString(),
+                puzzleSol: null,
+                validator: null,
+                skin: 'STANDARD',
+                keysType: 'NUMBERS',
+                actionAfterSolve: 'NONE',
+                isPuzzleAssigned: true,
+                rangeInput: null,
+                solutionLength: solutionLength,
+                locale: 'es',
+                backgroundImage: backgroundImage || null,
+                backgroundColor: backgroundColor || null,
+                unlockedText: unlockedText || "UNLOCKED!",
+                escappClientSettings: {
+                    endpoint: endpoint,
+                    linkedPuzzleIds: [puzzleId],
+                    notifications: false,
+                    preview: false,
+                    silent: true,
+                    restoreState: 'AUTO',
+                    resourceId: 'TestPuzzle',
+                    I18n: { locale: 'es' },
+                    user: {
+                        email: userEmail,
+                        token: userToken
+                    }
+                }
+            };
+
+            console.log('Loading puzzle with config:', window.ESCAPP_APP_SETTINGS);
+
+            // Reload iframe to apply new config
+            var iframe = document.getElementById('puzzleFrame');
+            iframe.src = 'WebGL/index.html';
+        }
+
+        // Load on page load
+        window.onload = function() {
+            // Uncomment to auto-load on page load:
+            // loadPuzzle();
+        };
+    </script>
+</body>
+</html>

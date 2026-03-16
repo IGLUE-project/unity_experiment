@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>{{{ PRODUCT_NAME }}}</title>
+    <!-- Escapp Client Styles -->
+    <link rel="stylesheet" href="escapp.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #1a1a2e;
+        }
+
+        #background-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            z-index: 0;
+        }
+
+        #unity-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        #unity-canvas {
+            width: 100%;
+            height: 100%;
+            background: transparent;
+        }
+
+        #unity-loading-bar {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        #unity-logo {
+            width: 100px;
+            height: 100px;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="%230f3460" stroke="%23e94560" stroke-width="3"/><rect x="40" y="30" width="20" height="35" rx="3" fill="%23e94560"/><circle cx="50" cy="75" r="5" fill="%23e94560"/></svg>') center/contain no-repeat;
+        }
+
+        #unity-progress-bar-empty {
+            width: 180px;
+            height: 6px;
+            background: #0f3460;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        #unity-progress-bar-full {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #e94560, #ff6b6b);
+            transition: width 0.2s;
+        }
+
+        #loading-text {
+            color: #aaa;
+            font-size: 12px;
+            font-family: sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div id="background-image"></div>
+    <div id="unity-container">
+        <canvas id="unity-canvas" tabindex="-1"></canvas>
+        <div id="unity-loading-bar">
+            <div id="unity-logo"></div>
+            <div id="unity-progress-bar-empty">
+                <div id="unity-progress-bar-full"></div>
+            </div>
+            <div id="loading-text">Loading...</div>
+        </div>
+    </div>
+
+    <!-- Escapp Client Library (local) -->
+    <script src="escapp.js"></script>
+
+    <script>
+        // ===========================================
+        // GET CONFIGURATION FROM PARENT WINDOW
+        // ===========================================
+
+        function getAppSettings() {
+            // Try to get ESCAPP_APP_SETTINGS from parent window (iframe scenario)
+            try {
+                if (window.parent && window.parent.ESCAPP_APP_SETTINGS) {
+                    console.log('Found ESCAPP_APP_SETTINGS in parent');
+                    return window.parent.ESCAPP_APP_SETTINGS;
+                }
+            } catch (e) {
+                console.log('Could not access parent window:', e);
+            }
+
+            // Try own window
+            if (window.ESCAPP_APP_SETTINGS) {
+                return window.ESCAPP_APP_SETTINGS;
+            }
+
+            console.log('No ESCAPP_APP_SETTINGS found');
+            return null;
+        }
+
+        // Get parent's escapp instance
+        function getParentEscapp() {
+            console.log('=== Looking for parent escapp ===');
+            try {
+                console.log('window.parent:', window.parent);
+                console.log('window.parent.ESCAPP_APP:', window.parent ? window.parent.ESCAPP_APP : 'no parent');
+
+                if (window.parent && window.parent.ESCAPP_APP && window.parent.ESCAPP_APP.escapp) {
+                    console.log('Found ESCAPP_APP.escapp in parent:', window.parent.ESCAPP_APP.escapp);
+                    return window.parent.ESCAPP_APP.escapp;
+                }
+
+                // Also try just ESCAPP_APP in current window
+                if (window.ESCAPP_APP && window.ESCAPP_APP.escapp) {
+                    console.log('Found ESCAPP_APP.escapp in current window');
+                    return window.ESCAPP_APP.escapp;
+                }
+
+                console.log('No ESCAPP_APP.escapp found in parent or current window');
+            } catch (e) {
+                console.error('Could not access parent ESCAPP_APP:', e);
+            }
+            return null;
+        }
+
+        // Store config globally
+        window.ESCAPP_APP_SETTINGS = getAppSettings();
+        console.log('ESCAPP_APP_SETTINGS:', window.ESCAPP_APP_SETTINGS);
+
+        // Extract padlock config from ESCAPP_APP_SETTINGS
+        var appSettings = window.ESCAPP_APP_SETTINGS;
+        var clientSettings = appSettings && appSettings.escappClientSettings;
+
+        // Get puzzleId from linkedPuzzleIds or direct property
+        var puzzleId = 1;
+        if (clientSettings && clientSettings.linkedPuzzleIds && clientSettings.linkedPuzzleIds[0]) {
+            puzzleId = clientSettings.linkedPuzzleIds[0];
+        } else if (appSettings && appSettings.puzzleId) {
+            puzzleId = appSettings.puzzleId;
+        }
+
+        window.PADLOCK_CONFIG = {
+            positions: (appSettings && appSettings.solutionLength) || (appSettings && appSettings.positions) || 4,
+            puzzleId: puzzleId,
+            solution: (appSettings && appSettings.solution) || null,
+            endpoint: (clientSettings && clientSettings.endpoint) || (appSettings && appSettings.endpoint) || null,
+            user: (clientSettings && clientSettings.user) || (appSettings && appSettings.user) || null,
+            backgroundImage: (appSettings && appSettings.backgroundImage) || null,
+            backgroundColor: (appSettings && appSettings.backgroundColor) || null,
+            unlockedText: (appSettings && appSettings.unlockedText) || "UNLOCKED!"
+        };
+        console.log('Padlock config:', window.PADLOCK_CONFIG);
+
+        // Apply background image if provided
+        function applyBackground() {
+            var bgElement = document.getElementById('background-image');
+            if (!bgElement) return;
+
+            if (window.PADLOCK_CONFIG.backgroundImage) {
+                bgElement.style.backgroundImage = 'url(' + window.PADLOCK_CONFIG.backgroundImage + ')';
+                console.log('Applied background image:', window.PADLOCK_CONFIG.backgroundImage);
+            }
+
+            if (window.PADLOCK_CONFIG.backgroundColor) {
+                document.body.style.background = window.PADLOCK_CONFIG.backgroundColor;
+                console.log('Applied background color:', window.PADLOCK_CONFIG.backgroundColor);
+            }
+        }
+        applyBackground();
+
+        // ===========================================
+        // ESCAPP INITIALIZATION
+        // ===========================================
+
+        window.escappInstance = null;
+
+        function initializeEscapp() {
+            console.log('=== initializeEscapp called ===');
+
+            // First check if parent already has an escapp instance
+            var parentEscapp = getParentEscapp();
+            if (parentEscapp) {
+                console.log('SUCCESS: Using parent ESCAPP instance');
+                window.escappInstance = parentEscapp;
+                return;
+            }
+
+            // Get settings - could be nested in escappClientSettings or directly on the object
+            var appSettings = window.ESCAPP_APP_SETTINGS;
+            var clientSettings = null;
+
+            if (appSettings) {
+                // Check if settings are nested (escappClientSettings) or direct
+                if (appSettings.escappClientSettings && appSettings.escappClientSettings.endpoint) {
+                    clientSettings = appSettings.escappClientSettings;
+                } else if (appSettings.endpoint) {
+                    // Settings are directly on the object
+                    clientSettings = {
+                        endpoint: appSettings.endpoint,
+                        linkedPuzzleIds: [appSettings.puzzleId || 1],
+                        user: appSettings.user || {},
+                        preview: false,
+                        silent: true,
+                        notifications: false
+                    };
+                }
+            }
+
+            console.log('clientSettings:', clientSettings);
+
+            if (clientSettings && clientSettings.endpoint) {
+                // Check if ESCAPP library is loaded
+                if (typeof ESCAPP !== 'undefined') {
+                    try {
+                        console.log('Creating ESCAPP instance with settings:', clientSettings);
+                        window.escappInstance = new ESCAPP(clientSettings);
+
+                        // Validate the connection
+                        window.escappInstance.validate(function(result) {
+                            console.log('ESCAPP validation result:', result);
+                        });
+
+                        console.log('SUCCESS: ESCAPP instance created');
+                        return;
+                    } catch (err) {
+                        console.error('Error creating ESCAPP instance:', err);
+                    }
+                } else {
+                    console.error('ESCAPP library not loaded - make sure escapp.js is included');
+                }
+            } else {
+                console.log('No endpoint found in settings');
+            }
+
+            // Fallback to mock
+            console.warn('WARNING: Using mock mode (solutions will NOT be sent to server)');
+            window.escappInstance = createMockEscapp();
+        }
+
+        // Mock Escapp for offline/testing
+        function createMockEscapp() {
+            return {
+                checkPuzzle: function(puzzleId, userSolution, options, callback) {
+                    console.log('[Mock] checkPuzzle:', puzzleId, userSolution);
+                    setTimeout(function() {
+                        callback(false, { success: false, message: 'Mock mode - no server' });
+                    }, 300);
+                },
+                submitPuzzle: function(puzzleId, userSolution, options, callback) {
+                    this.checkPuzzle(puzzleId, userSolution, options, callback);
+                },
+                validate: function(cb) { cb({ success: true }); },
+                getSolvedPuzzles: function() { return []; }
+            };
+        }
+
+        // ===========================================
+        // ESCAPP BRIDGE FOR UNITY (uses checkPuzzle)
+        // ===========================================
+
+        // This function is called by Unity's jslib
+        window.EscappCheckSolution = function(puzzleId, solution, gameObjectName, callbackMethod) {
+            console.log('=== EscappCheckSolution ===');
+            console.log('puzzleId:', puzzleId, 'solution:', solution);
+            console.log('escappInstance:', window.escappInstance);
+
+            if (window.escappInstance) {
+                console.log('escappInstance type:', typeof window.escappInstance);
+                console.log('Available methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(window.escappInstance) || window.escappInstance));
+                console.log('submitPuzzle exists:', typeof window.escappInstance.submitPuzzle);
+                console.log('checkPuzzle exists:', typeof window.escappInstance.checkPuzzle);
+            }
+
+            if (!window.escappInstance) {
+                console.error('Escapp not initialized');
+                if (window.unityInstance) {
+                    window.unityInstance.SendMessage(gameObjectName, callbackMethod,
+                        JSON.stringify({ success: false, message: 'Escapp not initialized' }));
+                }
+                return;
+            }
+
+            // Try submitPuzzle first (sends to server), then checkPuzzle as fallback
+            var methodToUse = null;
+            if (typeof window.escappInstance.submitPuzzle === 'function') {
+                methodToUse = 'submitPuzzle';
+            } else if (typeof window.escappInstance.checkPuzzle === 'function') {
+                methodToUse = 'checkPuzzle';
+            }
+
+            console.log('Using method:', methodToUse);
+
+            if (!methodToUse) {
+                console.error('No submitPuzzle or checkPuzzle method found');
+                if (window.unityInstance) {
+                    window.unityInstance.SendMessage(gameObjectName, callbackMethod,
+                        JSON.stringify({ success: false, message: 'Escapp API not available' }));
+                }
+                return;
+            }
+
+            // Call the method
+            try {
+                console.log('Calling ' + methodToUse + '(' + puzzleId + ', ' + solution + ', {}, callback)');
+                window.escappInstance[methodToUse](puzzleId, solution, {}, function(success, response) {
+                    console.log(methodToUse + ' callback received:', success, response);
+
+                    var result = JSON.stringify({
+                        success: success,
+                        message: success ? 'Correct!' : (response && response.message ? response.message : 'Wrong combination!')
+                    });
+
+                    console.log('Sending to Unity:', result);
+                    if (window.unityInstance) {
+                        window.unityInstance.SendMessage(gameObjectName, callbackMethod, result);
+                    }
+                });
+            } catch (err) {
+                console.error('Error calling ' + methodToUse + ':', err);
+                if (window.unityInstance) {
+                    window.unityInstance.SendMessage(gameObjectName, callbackMethod,
+                        JSON.stringify({ success: false, message: 'Error: ' + err.message }));
+                }
+            }
+        };
+
+        // ===========================================
+        // UNITY WEBGL LOADER
+        // ===========================================
+
+        var buildUrl = "Build";
+        var loaderUrl = buildUrl + "/{{{ LOADER_FILENAME }}}";
+        var config = {
+            dataUrl: buildUrl + "/{{{ DATA_FILENAME }}}",
+            frameworkUrl: buildUrl + "/{{{ FRAMEWORK_FILENAME }}}",
+#if USE_THREADS
+            workerUrl: buildUrl + "/{{{ WORKER_FILENAME }}}",
+#endif
+#if USE_WASM
+            codeUrl: buildUrl + "/{{{ CODE_FILENAME }}}",
+#endif
+#if MEMORY_FILENAME
+            memoryUrl: buildUrl + "/{{{ MEMORY_FILENAME }}}",
+#endif
+#if SYMBOLS_FILENAME
+            symbolsUrl: buildUrl + "/{{{ SYMBOLS_FILENAME }}}",
+#endif
+            streamingAssetsUrl: "StreamingAssets",
+            companyName: "{{{ COMPANY_NAME }}}",
+            productName: "{{{ PRODUCT_NAME }}}",
+            productVersion: "{{{ PRODUCT_VERSION }}}",
+        };
+
+        var canvas = document.querySelector("#unity-canvas");
+        var loadingBar = document.querySelector("#unity-loading-bar");
+        var progressBarFull = document.querySelector("#unity-progress-bar-full");
+        var loadingText = document.querySelector("#loading-text");
+
+        loadingBar.style.display = "flex";
+
+        var script = document.createElement("script");
+        script.src = loaderUrl;
+        script.onload = function() {
+            createUnityInstance(canvas, config, function(progress) {
+                progressBarFull.style.width = (100 * progress) + "%";
+                loadingText.textContent = Math.round(100 * progress) + "%";
+            }).then(function(unityInstance) {
+                loadingBar.style.display = "none";
+                window.unityInstance = unityInstance;
+
+                // Initialize Escapp
+                initializeEscapp();
+
+            }).catch(function(message) {
+                alert(message);
+            });
+        };
+
+        document.body.appendChild(script);
+    </script>
+</body>
+</html>
