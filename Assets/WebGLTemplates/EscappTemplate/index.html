@@ -103,105 +103,30 @@
 
     <script>
         // ===========================================
-        // GET CONFIGURATION FROM PARENT WINDOW
+        // ESCAPP INSTANCE AND CONFIGURATION
         // ===========================================
 
-        function getAppSettings() {
-            // Try to get ESCAPP_APP_SETTINGS from parent window (iframe scenario)
-            try {
-                if (window.parent && window.parent.ESCAPP_APP_SETTINGS) {
-                    console.log('Found ESCAPP_APP_SETTINGS in parent');
-                    return window.parent.ESCAPP_APP_SETTINGS;
-                }
-            } catch (e) {
-                console.log('Could not access parent window:', e);
-            }
+        window.escappInstance = null;
+        window.PADLOCK_CONFIG = null;
 
-            // Try own window
-            if (window.ESCAPP_APP_SETTINGS) {
-                return window.ESCAPP_APP_SETTINGS;
-            }
-
-            console.log('No ESCAPP_APP_SETTINGS found');
-            return null;
-        }
-
-        // Get parent's escapp instance
+        // Get parent's escapp instance if available
         function getParentEscapp() {
-            console.log('=== Looking for parent escapp ===');
             try {
-                console.log('window.parent:', window.parent);
-                console.log('window.parent.ESCAPP_APP:', window.parent ? window.parent.ESCAPP_APP : 'no parent');
-
                 if (window.parent && window.parent.ESCAPP_APP && window.parent.ESCAPP_APP.escapp) {
-                    console.log('Found ESCAPP_APP.escapp in parent:', window.parent.ESCAPP_APP.escapp);
+                    console.log('Found ESCAPP_APP.escapp in parent');
                     return window.parent.ESCAPP_APP.escapp;
                 }
-
-                // Also try just ESCAPP_APP in current window
                 if (window.ESCAPP_APP && window.ESCAPP_APP.escapp) {
                     console.log('Found ESCAPP_APP.escapp in current window');
                     return window.ESCAPP_APP.escapp;
                 }
-
-                console.log('No ESCAPP_APP.escapp found in parent or current window');
             } catch (e) {
-                console.error('Could not access parent ESCAPP_APP:', e);
+                console.log('Could not access parent ESCAPP_APP:', e);
             }
             return null;
         }
 
-        // Store config globally
-        window.ESCAPP_APP_SETTINGS = getAppSettings();
-        console.log('ESCAPP_APP_SETTINGS:', window.ESCAPP_APP_SETTINGS);
-
-        // Extract padlock config from ESCAPP_APP_SETTINGS
-        var appSettings = window.ESCAPP_APP_SETTINGS;
-        var clientSettings = appSettings && appSettings.escappClientSettings;
-
-        // Get puzzleId from linkedPuzzleIds or direct property
-        var puzzleId = 1;
-        if (clientSettings && clientSettings.linkedPuzzleIds && clientSettings.linkedPuzzleIds[0]) {
-            puzzleId = clientSettings.linkedPuzzleIds[0];
-        } else if (appSettings && appSettings.puzzleId) {
-            puzzleId = appSettings.puzzleId;
-        }
-
-        window.PADLOCK_CONFIG = {
-            positions: (appSettings && appSettings.solutionLength) || (appSettings && appSettings.positions) || 4,
-            puzzleId: puzzleId,
-            solution: (appSettings && appSettings.solution) || null,
-            endpoint: (clientSettings && clientSettings.endpoint) || (appSettings && appSettings.endpoint) || null,
-            user: (clientSettings && clientSettings.user) || (appSettings && appSettings.user) || null,
-            backgroundImage: (appSettings && appSettings.backgroundImage) || null,
-            backgroundColor: (appSettings && appSettings.backgroundColor) || null,
-            unlockedText: (appSettings && appSettings.unlockedText) || "UNLOCKED!"
-        };
-        console.log('Padlock config:', window.PADLOCK_CONFIG);
-
-        // Apply background image if provided
-        function applyBackground() {
-            var bgElement = document.getElementById('background-image');
-            if (!bgElement) return;
-
-            if (window.PADLOCK_CONFIG.backgroundImage) {
-                bgElement.style.backgroundImage = 'url(' + window.PADLOCK_CONFIG.backgroundImage + ')';
-                console.log('Applied background image:', window.PADLOCK_CONFIG.backgroundImage);
-            }
-
-            if (window.PADLOCK_CONFIG.backgroundColor) {
-                document.body.style.background = window.PADLOCK_CONFIG.backgroundColor;
-                console.log('Applied background color:', window.PADLOCK_CONFIG.backgroundColor);
-            }
-        }
-        applyBackground();
-
-        // ===========================================
-        // ESCAPP INITIALIZATION
-        // ===========================================
-
-        window.escappInstance = null;
-
+        // Initialize Escapp and get configuration using the client API
         function initializeEscapp() {
             console.log('=== initializeEscapp called ===');
 
@@ -210,59 +135,90 @@
             if (parentEscapp) {
                 console.log('SUCCESS: Using parent ESCAPP instance');
                 window.escappInstance = parentEscapp;
+                buildPadlockConfig();
                 return;
             }
 
-            // Get settings - could be nested in escappClientSettings or directly on the object
-            var appSettings = window.ESCAPP_APP_SETTINGS;
-            var clientSettings = null;
-
-            if (appSettings) {
-                // Check if settings are nested (escappClientSettings) or direct
-                if (appSettings.escappClientSettings && appSettings.escappClientSettings.endpoint) {
-                    clientSettings = appSettings.escappClientSettings;
-                } else if (appSettings.endpoint) {
-                    // Settings are directly on the object
-                    clientSettings = {
-                        endpoint: appSettings.endpoint,
-                        linkedPuzzleIds: [appSettings.puzzleId || 1],
-                        user: appSettings.user || {},
-                        preview: false,
+            // Try to create our own ESCAPP instance
+            if (typeof ESCAPP !== 'undefined') {
+                try {
+                    // ESCAPP will automatically find settings from environment
+                    // using its internal _getAppSettingsFromEnvironment method
+                    var escapp = new ESCAPP({
                         silent: true,
                         notifications: false
-                    };
-                }
-            }
+                    });
 
-            console.log('clientSettings:', clientSettings);
-
-            if (clientSettings && clientSettings.endpoint) {
-                // Check if ESCAPP library is loaded
-                if (typeof ESCAPP !== 'undefined') {
-                    try {
-                        console.log('Creating ESCAPP instance with settings:', clientSettings);
-                        window.escappInstance = new ESCAPP(clientSettings);
-
-                        // Validate the connection
-                        window.escappInstance.validate(function(result) {
-                            console.log('ESCAPP validation result:', result);
-                        });
-
-                        console.log('SUCCESS: ESCAPP instance created');
-                        return;
-                    } catch (err) {
-                        console.error('Error creating ESCAPP instance:', err);
-                    }
-                } else {
-                    console.error('ESCAPP library not loaded - make sure escapp.js is included');
+                    window.escappInstance = escapp;
+                    console.log('SUCCESS: Created new ESCAPP instance');
+                    buildPadlockConfig();
+                    return;
+                } catch (err) {
+                    console.error('Error creating ESCAPP instance:', err);
                 }
             } else {
-                console.log('No endpoint found in settings');
+                console.error('ESCAPP library not loaded');
             }
 
             // Fallback to mock
             console.warn('WARNING: Using mock mode (solutions will NOT be sent to server)');
             window.escappInstance = createMockEscapp();
+            buildPadlockConfigFromFallback();
+        }
+
+        // Build PADLOCK_CONFIG using the escapp client's getAppSettings method
+        function buildPadlockConfig() {
+            var appSettings = null;
+            var clientSettings = null;
+
+            // Use escapp client's getAppSettings() method
+            if (window.escappInstance && typeof window.escappInstance.getAppSettings === 'function') {
+                appSettings = window.escappInstance.getAppSettings();
+                console.log('Got appSettings from escapp.getAppSettings():', appSettings);
+            }
+
+            // Also try getSettings() for client settings
+            if (window.escappInstance && typeof window.escappInstance.getSettings === 'function') {
+                clientSettings = window.escappInstance.getSettings();
+                console.log('Got clientSettings from escapp.getSettings():', clientSettings);
+            }
+
+            // Get puzzleId from various sources
+            var puzzleId = 1;
+            if (clientSettings && clientSettings.linkedPuzzleIds && clientSettings.linkedPuzzleIds[0]) {
+                puzzleId = clientSettings.linkedPuzzleIds[0];
+            } else if (appSettings && appSettings.puzzleId) {
+                puzzleId = appSettings.puzzleId;
+            }
+
+            window.PADLOCK_CONFIG = {
+                positions: (appSettings && appSettings.solutionLength) || (appSettings && appSettings.positions) || 4,
+                puzzleId: puzzleId,
+                solution: (appSettings && appSettings.solution) || null,
+                endpoint: (clientSettings && clientSettings.endpoint) || null,
+                user: (clientSettings && clientSettings.user) || null,
+                backgroundImage: (appSettings && appSettings.backgroundImage) || null,
+                backgroundColor: (appSettings && appSettings.backgroundColor) || null,
+                unlockedText: (appSettings && appSettings.unlockedText) || "UNLOCKED!"
+            };
+
+            console.log('Built PADLOCK_CONFIG:', window.PADLOCK_CONFIG);
+            applyBackground();
+        }
+
+        // Fallback config builder when no escapp instance is available
+        function buildPadlockConfigFromFallback() {
+            window.PADLOCK_CONFIG = {
+                positions: 4,
+                puzzleId: 1,
+                solution: null,
+                endpoint: null,
+                user: null,
+                backgroundImage: null,
+                backgroundColor: null,
+                unlockedText: "UNLOCKED!"
+            };
+            console.log('Using fallback PADLOCK_CONFIG:', window.PADLOCK_CONFIG);
         }
 
         // Mock Escapp for offline/testing
@@ -278,26 +234,35 @@
                     this.checkPuzzle(puzzleId, userSolution, options, callback);
                 },
                 validate: function(cb) { cb({ success: true }); },
-                getSolvedPuzzles: function() { return []; }
+                getSolvedPuzzles: function() { return []; },
+                getAppSettings: function() { return null; },
+                getSettings: function() { return null; }
             };
         }
 
+        // Apply background image/color if provided
+        function applyBackground() {
+            var bgElement = document.getElementById('background-image');
+            if (!bgElement || !window.PADLOCK_CONFIG) return;
+
+            if (window.PADLOCK_CONFIG.backgroundImage) {
+                bgElement.style.backgroundImage = 'url(' + window.PADLOCK_CONFIG.backgroundImage + ')';
+                console.log('Applied background image:', window.PADLOCK_CONFIG.backgroundImage);
+            }
+
+            if (window.PADLOCK_CONFIG.backgroundColor) {
+                document.body.style.background = window.PADLOCK_CONFIG.backgroundColor;
+                console.log('Applied background color:', window.PADLOCK_CONFIG.backgroundColor);
+            }
+        }
+
         // ===========================================
-        // ESCAPP BRIDGE FOR UNITY (uses checkPuzzle)
+        // ESCAPP BRIDGE FOR UNITY
         // ===========================================
 
-        // This function is called by Unity's jslib
         window.EscappCheckSolution = function(puzzleId, solution, gameObjectName, callbackMethod) {
             console.log('=== EscappCheckSolution ===');
             console.log('puzzleId:', puzzleId, 'solution:', solution);
-            console.log('escappInstance:', window.escappInstance);
-
-            if (window.escappInstance) {
-                console.log('escappInstance type:', typeof window.escappInstance);
-                console.log('Available methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(window.escappInstance) || window.escappInstance));
-                console.log('submitPuzzle exists:', typeof window.escappInstance.submitPuzzle);
-                console.log('checkPuzzle exists:', typeof window.escappInstance.checkPuzzle);
-            }
 
             if (!window.escappInstance) {
                 console.error('Escapp not initialized');
@@ -308,7 +273,7 @@
                 return;
             }
 
-            // Try submitPuzzle first (sends to server), then checkPuzzle as fallback
+            // Try submitPuzzle first, then checkPuzzle as fallback
             var methodToUse = null;
             if (typeof window.escappInstance.submitPuzzle === 'function') {
                 methodToUse = 'submitPuzzle';
@@ -327,9 +292,7 @@
                 return;
             }
 
-            // Call the method
             try {
-                console.log('Calling ' + methodToUse + '(' + puzzleId + ', ' + solution + ', {}, callback)');
                 window.escappInstance[methodToUse](puzzleId, solution, {}, function(success, response) {
                     console.log(methodToUse + ' callback received:', success, response);
 
@@ -396,7 +359,7 @@
                 loadingBar.style.display = "none";
                 window.unityInstance = unityInstance;
 
-                // Initialize Escapp
+                // Initialize Escapp and build config using client API
                 initializeEscapp();
 
             }).catch(function(message) {

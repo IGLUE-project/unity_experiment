@@ -60,7 +60,7 @@ The puzzle reads configuration from `window.ESCAPP_APP_SETTINGS` set by the pare
 window.ESCAPP_APP_SETTINGS = {
     solutionLength: 4,                    // Number of digit positions
     escappClientSettings: {
-        endpoint: "https://escapp.es/api/escapeRooms/320",
+        endpoint: "https://escapp.es/api/escapeRooms/YOUR_ID",
         linkedPuzzleIds: [2],             // Puzzle ID to validate against
         silent: true,                     // Don't show auth popup
         notifications: false,
@@ -105,7 +105,7 @@ window.ESCAPP_APP_SETTINGS = {
 window.ESCAPP_APP_SETTINGS = {
     solutionLength: 4,
     escappClientSettings: {
-        endpoint: "https://escapp.es/api/escapeRooms/320",
+        endpoint: "https://escapp.es/api/escapeRooms/YOUR_ID",
         linkedPuzzleIds: [2],
         silent: true,
         user: { email: "...", token: "..." }
